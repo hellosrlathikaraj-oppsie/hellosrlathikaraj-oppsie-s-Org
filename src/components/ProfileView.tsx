@@ -12,7 +12,11 @@ import {
   Link as LinkIcon, 
   CheckCircle2, 
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  ShieldCheck,
+  Download,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { storage } from '../services/storage';
@@ -20,12 +24,16 @@ import { storage } from '../services/storage';
 interface ProfileViewProps {
   profile: UserProfile;
   onUpdateProfile: (profile: UserProfile) => void;
+  onDataImported: () => void;
+  onClearData: () => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export function ProfileView({
   profile,
   onUpdateProfile,
+  onDataImported,
+  onClearData,
   onShowToast,
 }: ProfileViewProps) {
   const [formData, setFormData] = useState<UserProfile>(profile);
@@ -90,6 +98,33 @@ export function ProfileView({
     }, 250);
   };
 
+  const handleExport = () => {
+    const blob = new Blob([storage.exportData()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `scout-data-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      storage.importData(await file.text());
+      const importedProfile = storage.getProfile();
+      setFormData(importedProfile);
+      onUpdateProfile(importedProfile);
+      onDataImported();
+      onShowToast('Scout data imported', 'Profile, tracker, and manual email data were restored locally.', 'success');
+    } catch {
+      onShowToast('Import failed', 'Choose a JSON file exported from Scout.', 'error');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Profile Completeness Banner (Computed dynamically from filled fields) */}
@@ -148,6 +183,21 @@ export function ProfileView({
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-[#0e1422] rounded-2xl border border-slate-800/90 p-5 sm:p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-bold text-white">Your data stays in this browser</h3>
+            <p className="text-xs text-slate-400 leading-relaxed mt-1">Scout stores your profile, tracker entries, manual emails, and OpenAlex key in local browser storage. The site does not upload this personal data to Scout servers.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleExport} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 cursor-pointer"><Download className="w-3.5 h-3.5" />Export JSON</button>
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 cursor-pointer"><Upload className="w-3.5 h-3.5" />Import JSON<input type="file" accept="application/json,.json" onChange={handleImport} className="hidden" /></label>
+          <button type="button" onClick={() => { if (window.confirm('Clear your Scout profile, tracker, manual emails, and saved OpenAlex key from this browser?')) onClearData(); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-950/60 hover:bg-rose-900/70 border border-rose-800/50 text-xs font-semibold text-rose-200 cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Clear my data</button>
+        </div>
       </div>
 
       {/* Main Profile Form */}

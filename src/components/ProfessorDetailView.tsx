@@ -269,7 +269,7 @@ export function ProfessorDetailView({
             <div className="flex items-center gap-2">
               <div className="px-3.5 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 shadow-md shadow-emerald-950/50">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>{activeProfessor.isProvisionalScore ? `${activeProfessor.matchingScore} matching works (provisional)` : `${activeProfessor.matchingScore}% Candidate Fit`}</span>
+                <span>{activeProfessor.isProvisionalScore ? `${activeProfessor.matchingScore} Estimated match` : `${activeProfessor.matchingScore} Illustrative sample`}</span>
               </div>
             </div>
             <div className="text-xs font-mono text-slate-400 space-y-0.5 text-left lg:text-right">

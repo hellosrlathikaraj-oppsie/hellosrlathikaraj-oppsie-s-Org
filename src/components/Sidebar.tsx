@@ -226,10 +226,10 @@ export function Sidebar({
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-200 truncate">
-                {userProfile.fullName || 'Alex Chen'}
+                {userProfile.fullName || 'Your profile'}
               </p>
               <p className="text-[11px] text-slate-400 truncate">
-                {userProfile.currentInstitution || 'UC Berkeley'}
+                {userProfile.currentInstitution || 'Add your institution'}
               </p>
             </div>
           </div>
