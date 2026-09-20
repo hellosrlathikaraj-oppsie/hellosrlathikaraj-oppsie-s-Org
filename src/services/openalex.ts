@@ -84,7 +84,7 @@ interface OpenAlexAuthor {
   topics?: Array<{ display_name?: string }>;
 }
 
-interface OpenAlexResponse {
+export interface OpenAlexResponse {
   works: OpenAlexWork[];
   authors: OpenAlexAuthor[];
   apiCalls?: number;
@@ -119,15 +119,21 @@ function avatarFor(name: string): string {
   return colors[name.length % colors.length];
 }
 
-function mapResults(response: OpenAlexResponse): Professor[] {
+export function mapResults(response: OpenAlexResponse): Professor[] {
   const authorsById = new Map(response.authors.map((author) => [author.id?.replace('https://openalex.org/', ''), author]));
+  const lastAuthorIds = new Set(
+    response.works
+      .map((work) => work.authorships?.at(-1)?.author?.id?.replace('https://openalex.org/', ''))
+      .filter((id): id is string => Boolean(id))
+  );
   const worksByAuthor = new Map<string, OpenAlexWork[]>();
   for (const work of response.works) {
     for (const authorship of work.authorships || []) {
       const authorId = authorship.author?.id?.replace('https://openalex.org/', '');
-      if (authorId) worksByAuthor.set(authorId, [...(worksByAuthor.get(authorId) || []), work]);
+      if (authorId && lastAuthorIds.has(authorId)) worksByAuthor.set(authorId, [...(worksByAuthor.get(authorId) || []), work]);
     }
   }
+  const corpus = Array.from(worksByAuthor.values()).map((works) => works.map(toMatchWork));
 
   return Array.from(worksByAuthor.entries())
     .map(([authorId, works]) => {
@@ -152,7 +158,7 @@ function mapResults(response: OpenAlexResponse): Professor[] {
       }));
       const matchWorks = works.map(toMatchWork);
       const lastAuthorWorks = works.filter((work) => work.authorships?.at(-1)?.author?.id?.endsWith(authorId)).map(toMatchWork);
-      const matchScore = calculateMatchScore(response.queryText || '', matchWorks, matchWorks, lastAuthorWorks);
+      const matchScore = calculateMatchScore(response.queryText || '', matchWorks, matchWorks, lastAuthorWorks, new Date().getFullYear(), corpus);
       return {
         id: authorId,
         name,

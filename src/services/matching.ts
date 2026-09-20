@@ -40,16 +40,24 @@ function termFrequency(tokens: string[]): Map<string, number> {
   return counts;
 }
 
-function cosineSimilarity(left: string[], right: string[]): { value: number; sharedTerms: string[] } {
+function cosineSimilarity(
+  left: string[],
+  right: string[],
+  candidateDocuments: string[][],
+): { value: number; sharedTerms: string[] } {
   const leftTf = termFrequency(left);
   const rightTf = termFrequency(right);
+  const documentFrequency = new Map<string, number>();
+  for (const document of candidateDocuments) {
+    for (const term of new Set(document)) documentFrequency.set(term, (documentFrequency.get(term) || 0) + 1);
+  }
+  const documentCount = Math.max(candidateDocuments.length, 1);
   const vocabulary = new Set([...leftTf.keys(), ...rightTf.keys()]);
   const leftVector: number[] = [];
   const rightVector: number[] = [];
 
   vocabulary.forEach((term) => {
-    const documentFrequency = Number(leftTf.has(term)) + Number(rightTf.has(term));
-    const idf = Math.log((3 / (documentFrequency + 1))) + 1;
+    const idf = Math.log((documentCount + 1) / ((documentFrequency.get(term) || 0) + 1)) + 1;
     leftVector.push((leftTf.get(term) || 0) * idf);
     rightVector.push((rightTf.get(term) || 0) * idf);
   });
@@ -74,11 +82,13 @@ export function calculateMatchScore(
   allAuthorWorks: MatchWork[],
   lastAuthorWorks: MatchWork[],
   currentYear = new Date().getFullYear(),
+  candidateCorpus: MatchWork[][] = [matchingWorks],
 ): MatchScore {
-  const professorText = allAuthorWorks
+  const professorText = matchingWorks
     .map((work) => `${work.title} ${work.abstractSnippet} ${work.primaryTopic}`)
     .join(' ');
-  const topic = cosineSimilarity(tokenize(userText), tokenize(professorText));
+  const corpusTexts = candidateCorpus.map((works) => tokenize(works.map((work) => `${work.title} ${work.abstractSnippet} ${work.primaryTopic}`).join(' ')));
+  const topic = cosineSimilarity(tokenize(userText), tokenize(professorText), corpusTexts);
   const workCount = matchingWorks.length;
   const newestYear = allAuthorWorks.reduce<number | null>((latest, work) => {
     if (!work.year) return latest;

@@ -7,40 +7,72 @@ import { createServer as createViteServer } from 'vite';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
+const TRUST_PROXY_HOPS = Number.isFinite(Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10))
+  ? Math.max(0, Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10))
+  : 1;
 const OPENALEX_BASE_URL = 'https://api.openalex.org';
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX = 20;
+export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+export const RATE_LIMIT_MAX = 20;
 const cache = new Map<string, { expiresAt: number; payload: unknown }>();
-const requestCounts = new Map<string, { startedAt: number; count: number }>();
 
-const app = express();
-app.set('trust proxy', true);
+export interface RateLimitEntry {
+  startedAt: number;
+  count: number;
+}
+
+export class RateLimiter {
+  private readonly entries = new Map<string, RateLimitEntry>();
+
+  isAllowed(ip: string, now = Date.now()): boolean {
+    const current = this.entries.get(ip);
+    if (!current || now - current.startedAt >= RATE_LIMIT_WINDOW_MS) {
+      this.entries.set(ip, { startedAt: now, count: 1 });
+      return true;
+    }
+    if (current.count >= RATE_LIMIT_MAX) return false;
+    current.count += 1;
+    return true;
+  }
+
+  prune(now = Date.now()): void {
+    for (const [ip, entry] of this.entries) {
+      if (now - entry.startedAt >= RATE_LIMIT_WINDOW_MS) this.entries.delete(ip);
+    }
+  }
+
+  get size(): number {
+    return this.entries.size;
+  }
+}
+
+export function collectLastAuthorIds(works: OpenAlexWork[]): string[] {
+  return Array.from(new Set(
+    works
+      .map((work) => work.authorships?.at(-1)?.author?.id)
+      .filter((id): id is string => Boolean(id))
+      .map((id) => id.replace('https://openalex.org/', ''))
+  )).slice(0, 100);
+}
+
+export const app = express();
+app.set('trust proxy', TRUST_PROXY_HOPS);
 app.use(express.json({ limit: '16kb' }));
 
 function proxyError(status: number, code: string, message: string) {
   return { error: { code, message } };
 }
 
-function requestIp(req: express.Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  return typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.ip || 'unknown';
-}
+const rateLimiter = new RateLimiter();
+const rateLimitPruneTimer = setInterval(() => rateLimiter.prune(), RATE_LIMIT_WINDOW_MS);
+rateLimitPruneTimer.unref();
 
-function allowedByRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const current = requestCounts.get(ip);
-  if (!current || now - current.startedAt >= RATE_LIMIT_WINDOW_MS) {
-    requestCounts.set(ip, { startedAt: now, count: 1 });
-    return true;
-  }
-  if (current.count >= RATE_LIMIT_MAX) return false;
-  current.count += 1;
-  return true;
+export function rateLimitKey(req: express.Request): string {
+  return req.ip || 'unknown';
 }
 
 app.get('/api/openalex/search', async (req, res) => {
-  if (!allowedByRateLimit(requestIp(req))) {
+  if (!rateLimiter.isAllowed(rateLimitKey(req))) {
     return res.status(429).json(proxyError(429, 'rate_limit', 'Too many search requests. Please wait a minute and try again.'));
   }
 
@@ -85,12 +117,7 @@ app.get('/api/openalex/search', async (req, res) => {
 
     const worksData = await worksResponse.json() as { results?: OpenAlexWork[] };
     const works = worksData.results || [];
-    const authorIds = Array.from(new Set(
-      works
-        .flatMap((work) => (work.authorships || []).map((authorship) => authorship.author?.id))
-        .filter((id): id is string => Boolean(id))
-        .map((id) => id.replace('https://openalex.org/', ''))
-    )).slice(0, 100);
+    const authorIds = collectLastAuthorIds(works);
 
     let authors: OpenAlexAuthor[] = [];
     let apiCalls = 1;
@@ -124,7 +151,7 @@ app.get('/api/openalex/search', async (req, res) => {
   }
 });
 
-interface OpenAlexWork {
+export interface OpenAlexWork {
   id?: string;
   title?: string;
   publication_year?: number;
@@ -146,12 +173,17 @@ interface OpenAlexAuthor {
   topics?: Array<{ display_name?: string }>;
 }
 
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')));
-  app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-  app.listen(PORT, HOST, () => console.log(`Scout server listening on http://${HOST}:${PORT}`));
-} else {
+export async function startServer() {
+  if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, 'dist')));
+    app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+    return app.listen(PORT, HOST, () => console.log(`Scout server listening on http://${HOST}:${PORT}`));
+  }
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
   app.use(vite.middlewares);
-  app.listen(PORT, HOST, () => console.log(`Scout dev server listening on http://${HOST}:${PORT}`));
+  return app.listen(PORT, HOST, () => console.log(`Scout dev server listening on http://${HOST}:${PORT}`));
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  await startServer();
 }
