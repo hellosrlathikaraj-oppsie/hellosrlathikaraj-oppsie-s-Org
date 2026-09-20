@@ -554,7 +554,8 @@ function mapResults(response: OpenAlexResponse): Professor[] {
 async function searchLive(query: string): Promise<Professor[]> {
   const profile = storage.getProfile();
   const typedQuery = query.trim();
-  const fullQuery = typedQuery || profile.primaryInterests.join(' ').trim() || 'research';
+  const profileInterests = profile.primaryInterests.join(' ').trim();
+  const fullQuery = [profileInterests, typedQuery].filter(Boolean).join(' ') || 'research';
   const cacheKey = fullQuery.toLowerCase();
   const cached = sessionCache.get(cacheKey);
   if (cached) return cached;
