@@ -1,0 +1,6 @@
+{
+  "name": "Scout",
+  "description": "Personal research outreach assistant for discovering professors, generating personalized hooks, and tracking graduate and internship outreach.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
