@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Request } from 'express';
-import { collectLastAuthorIds, RateLimiter, RATE_LIMIT_MAX, rateLimitKey } from '../server';
+import { collectLastAuthorIds } from '../server';
 import { mapResults } from '../src/services/openalex';
 import { calculateMatchScore, MatchWork } from '../src/services/matching';
 
@@ -42,12 +41,25 @@ test('only last authors become candidates while their coauthored appearances are
   assert.equal(professors[0].recentPublications.length, 2);
 });
 
-test('forged X-Forwarded-For does not change the rate-limit identity', () => {
-  const request = { ip: '10.0.0.8', headers: { 'x-forwarded-for': 'forged-client-ip' } } as unknown as Request;
-  assert.equal(rateLimitKey(request), '10.0.0.8');
-  const limiter = new RateLimiter();
-  for (let index = 0; index < RATE_LIMIT_MAX; index += 1) assert.equal(limiter.isAllowed(rateLimitKey(request)), true);
-  assert.equal(limiter.isAllowed(rateLimitKey(request)), false);
+test('forged X-Forwarded-For cannot bypass the HTTP rate limit', async () => {
+  const { startServer } = await import('../server');
+  const server = await startServer();
+  if (!server.listening) await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert(address && typeof address !== 'string');
+  try {
+    const statuses: number[] = [];
+    for (let index = 0; index < 25; index += 1) {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/openalex/search?query=rate-limit-${index}`, {
+        headers: { 'X-Forwarded-For': `203.0.113.${index + 1}` },
+      });
+      statuses.push(response.status);
+    }
+    assert.deepEqual(statuses.slice(0, 20).every((status) => status === 401), true);
+    assert.deepEqual(statuses.slice(20).every((status) => status === 429), true);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test('topic scoring ranks a relevant professor above an irrelevant professor', () => {

@@ -7,9 +7,9 @@ import { createServer as createViteServer } from 'vite';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
-const TRUST_PROXY_HOPS = Number.isFinite(Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10))
-  ? Math.max(0, Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10))
-  : 1;
+const TRUST_PROXY_HOPS = Number.isFinite(Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10))
+  ? Math.max(0, Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10))
+  : 0;
 const OPENALEX_BASE_URL = 'https://api.openalex.org';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -179,6 +179,7 @@ export async function startServer() {
     app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
     return app.listen(PORT, HOST, () => console.log(`Scout server listening on http://${HOST}:${PORT}`));
   }
+  if (process.env.NODE_ENV === 'test') return app.listen(PORT, HOST);
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
   app.use(vite.middlewares);
   return app.listen(PORT, HOST, () => console.log(`Scout dev server listening on http://${HOST}:${PORT}`));
