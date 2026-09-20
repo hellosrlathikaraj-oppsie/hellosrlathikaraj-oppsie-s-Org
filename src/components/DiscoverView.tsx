@@ -43,8 +43,8 @@ export function DiscoverView({
   const [error, setError] = useState<OpenAlexError | null>(null);
   const [apiCalls, setApiCalls] = useState(0);
 
-  const institutions = openalex.getInstitutions();
-  const fields = openalex.getResearchFields();
+  const institutions = ['All Institutions', ...Array.from(new Set(professors.map((prof) => prof.institution).filter(Boolean)))];
+  const fields = ['All Fields', ...Array.from(new Set(professors.flatMap((prof) => [prof.primaryField, ...prof.researchTopics]).filter(Boolean)))];
 
   const quickTopics = [
     'Distributed Systems',

@@ -6,6 +6,7 @@ import { createServer as createViteServer } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || '127.0.0.1';
 const OPENALEX_BASE_URL = 'https://api.openalex.org';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, { expiresAt: number; payload: unknown }>();
@@ -111,9 +112,9 @@ interface OpenAlexAuthor {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
   app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-  app.listen(PORT, '0.0.0.0', () => console.log(`Scout server listening on ${PORT}`));
+  app.listen(PORT, HOST, () => console.log(`Scout server listening on http://${HOST}:${PORT}`));
 } else {
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
   app.use(vite.middlewares);
-  app.listen(PORT, '0.0.0.0', () => console.log(`Scout dev server listening on http://localhost:${PORT}`));
+  app.listen(PORT, HOST, () => console.log(`Scout dev server listening on http://${HOST}:${PORT}`));
 }

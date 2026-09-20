@@ -27,7 +27,7 @@ export function Header({
     detail: {
       title: selectedProfessor ? selectedProfessor.name : 'Professor Detail',
       subtitle: selectedProfessor
-        ? `${selectedProfessor.title} · ${selectedProfessor.institution}`
+        ? [selectedProfessor.title, selectedProfessor.institution].filter(Boolean).join(' · ')
         : 'View profile, publications, and generated cold email hooks',
     },
     tracker: {

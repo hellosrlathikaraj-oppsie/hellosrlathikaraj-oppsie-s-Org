@@ -540,6 +540,7 @@ function mapResults(response: OpenAlexResponse): Professor[] {
         researchTopics: topics,
         bio: '',
         email: null,
+        isProvisionalScore: true,
         recentPublications: publications,
         suggestedHookSnippet: publications[0]?.title || '',
         matchingScore: works.length,
@@ -552,7 +553,8 @@ function mapResults(response: OpenAlexResponse): Professor[] {
 
 async function searchLive(query: string): Promise<Professor[]> {
   const profile = storage.getProfile();
-  const fullQuery = [profile.primaryInterests.join(' '), query.trim()].filter(Boolean).join(' ').trim() || 'research';
+  const typedQuery = query.trim();
+  const fullQuery = typedQuery || profile.primaryInterests.join(' ').trim() || 'research';
   const cacheKey = fullQuery.toLowerCase();
   const cached = sessionCache.get(cacheKey);
   if (cached) return cached;
