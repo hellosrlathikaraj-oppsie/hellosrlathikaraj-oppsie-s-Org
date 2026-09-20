@@ -1,5 +1,4 @@
 import { Professor, Publication, UserProfile } from '../types';
-import { scoring } from './scoring';
 import { storage } from './storage';
 
 export const MOCK_PROFESSORS: Professor[] = [
@@ -437,114 +436,184 @@ export const MOCK_PROFESSORS: Professor[] = [
   }
 ];
 
-export const openalex = {
-  /**
-   * Search professors with optional query and filters, recalculating fit score dynamically
-   * based on current user profile.
-   */
-  async searchProfessors(
-    query = '',
-    filters?: {
-      field?: string;
-      institution?: string;
-      minScore?: number;
-      sortBy?: 'fit' | 'citations' | 'hIndex';
-    }
-  ): Promise<Professor[]> {
-    // Simulate slight async response
-    await new Promise(resolve => setTimeout(resolve, 200));
+const API_PATH = '/api/openalex/search';
+const sessionCache = new Map<string, Professor[]>();
+let sessionApiCalls = 0;
 
-    const profile = storage.getProfile();
-    const q = query.trim().toLowerCase();
+export class OpenAlexError extends Error {
+  code: 'missing_key' | 'rate_limit' | 'network' | 'openalex_error' | 'unknown';
+  constructor(code: OpenAlexError['code'], message: string) {
+    super(message);
+    this.name = 'OpenAlexError';
+    this.code = code;
+  }
+}
 
-    let list = MOCK_PROFESSORS.map(prof => {
-      // Recalculate dynamic fit score with current profile
-      const scoringResult = scoring.calculateFitScore(prof, profile);
-      // Check for manually saved email
-      const customEmail = storage.getCustomEmail(prof.id);
+interface OpenAlexWork {
+  id?: string;
+  title?: string;
+  publication_year?: number;
+  publication_date?: string;
+  cited_by_count?: number;
+  doi?: string | null;
+  abstract_inverted_index?: Record<string, number[]> | null;
+  authorships?: Array<{ author?: { id?: string; display_name?: string } }>;
+  primary_location?: { source?: { display_name?: string } | null } | null;
+  primary_topic?: { display_name?: string } | null;
+}
 
+interface OpenAlexAuthor {
+  id?: string;
+  display_name?: string;
+  last_known_institutions?: Array<{ display_name?: string; country_code?: string }>;
+  summary_stats?: { h_index?: number };
+  cited_by_count?: number;
+  topics?: Array<{ display_name?: string }>;
+}
+
+interface OpenAlexResponse {
+  works: OpenAlexWork[];
+  authors: OpenAlexAuthor[];
+  apiCalls?: number;
+}
+
+function abstractFromInvertedIndex(index?: Record<string, number[]> | null): string {
+  if (!index) return '';
+  return Object.entries(index)
+    .flatMap(([word, positions]) => positions.map((position) => ({ word, position })))
+    .sort((a, b) => a.position - b.position)
+    .map(({ word }) => word)
+    .join(' ')
+    .slice(0, 280);
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '??';
+}
+
+function avatarFor(name: string): string {
+  const colors = ['bg-indigo-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600', 'bg-cyan-600', 'bg-rose-600', 'bg-teal-600'];
+  return colors[name.length % colors.length];
+}
+
+function mapResults(response: OpenAlexResponse): Professor[] {
+  const authorsById = new Map(response.authors.map((author) => [author.id?.replace('https://openalex.org/', ''), author]));
+  const worksByAuthor = new Map<string, OpenAlexWork[]>();
+  for (const work of response.works) {
+    const authorId = work.authorships?.[work.authorships.length - 1]?.author?.id?.replace('https://openalex.org/', '');
+    if (!authorId) continue;
+    worksByAuthor.set(authorId, [...(worksByAuthor.get(authorId) || []), work]);
+  }
+
+  return Array.from(worksByAuthor.entries())
+    .map(([authorId, works]) => {
+      const author = authorsById.get(authorId);
+      const name = author?.display_name || works[0]?.authorships?.at(-1)?.author?.display_name || 'Unknown author';
+      const institution = author?.last_known_institutions?.[0];
+      const topics = Array.from(new Set([
+        ...(author?.topics || []).map((topic) => topic.display_name).filter((topic): topic is string => Boolean(topic)),
+        ...works.map((work) => work.primary_topic?.display_name).filter((topic): topic is string => Boolean(topic)),
+      ])).slice(0, 6);
+      const publications: Publication[] = works.slice(0, 5).map((work) => ({
+        id: work.id || `${authorId}-${work.publication_date || work.publication_year || 'work'}`,
+        title: work.title || 'Untitled work',
+        venue: work.primary_location?.source?.display_name || 'OpenAlex indexed article',
+        year: work.publication_year || new Date().getFullYear(),
+        citations: work.cited_by_count || 0,
+        doi: work.doi || undefined,
+        abstractSnippet: abstractFromInvertedIndex(work.abstract_inverted_index),
+        primaryTopic: work.primary_topic?.display_name || topics[0] || 'Research',
+      }));
       return {
-        ...prof,
-        email: customEmail || prof.email,
-        isManualEmail: !!customEmail,
-        isMockEmail: !customEmail && !!prof.email && !!prof.isMockEmail,
-        matchingScore: scoringResult.totalScore,
-        matchReasons: scoringResult.reasons,
-      };
-    });
+        id: authorId,
+        name,
+        initials: initials(name),
+        avatarBg: avatarFor(name),
+        title: '',
+        institution: institution?.display_name || '',
+        department: '',
+        city: '',
+        country: institution?.country_code || '',
+        hIndex: author?.summary_stats?.h_index || 0,
+        totalCitations: author?.cited_by_count || 0,
+        primaryField: topics[0] || 'Research',
+        researchTopics: topics,
+        bio: '',
+        email: null,
+        isProvisionalScore: true,
+        recentPublications: publications,
+        suggestedHookSnippet: publications[0]?.title || '',
+        matchingScore: works.length,
+        matchReasons: ['Provisional score based on matching works in the last 3 years'],
+      } satisfies Professor;
+    })
+    .sort((a, b) => b.matchingScore - a.matchingScore)
+    .slice(0, 30);
+}
 
-    if (q) {
-      list = list.filter(p => {
-        return (
-          p.name.toLowerCase().includes(q) ||
-          p.institution.toLowerCase().includes(q) ||
-          p.department.toLowerCase().includes(q) ||
-          p.primaryField.toLowerCase().includes(q) ||
-          p.researchTopics.some(t => t.toLowerCase().includes(q)) ||
-          p.recentPublications.some(pub => pub.title.toLowerCase().includes(q))
-        );
-      });
-    }
+async function searchLive(query: string): Promise<Professor[]> {
+  const profile = storage.getProfile();
+  const typedQuery = query.trim();
+  const profileInterests = profile.primaryInterests.join(' ').trim();
+  const fullQuery = [profileInterests, typedQuery].filter(Boolean).join(' ') || 'research';
+  const cacheKey = fullQuery.toLowerCase();
+  const cached = sessionCache.get(cacheKey);
+  if (cached) return cached;
 
-    if (filters?.field && filters.field !== 'All Fields') {
-      list = list.filter(p => p.primaryField === filters.field || p.researchTopics.includes(filters.field!));
-    }
+  const response = await fetch(`${API_PATH}?query=${encodeURIComponent(fullQuery)}`);
+  let body: OpenAlexResponse & { error?: { code?: OpenAlexError['code']; message?: string } } = {} as OpenAlexResponse;
+  try { body = await response.json(); } catch { /* handled below */ }
+  if (!response.ok || body.error) {
+    const code = body.error?.code || (response.status === 429 ? 'rate_limit' : response.status >= 500 ? 'network' : 'unknown');
+    throw new OpenAlexError(code, body.error?.message || 'OpenAlex search failed.');
+  }
+  sessionApiCalls += body.apiCalls || 0;
+  const results = mapResults(body);
+  sessionCache.set(cacheKey, results);
+  return results;
+}
 
-    if (filters?.institution && filters.institution !== 'All Institutions') {
-      list = list.filter(p => p.institution === filters.institution);
-    }
+function mapSample(prof: Professor): Professor {
+  const customEmail = storage.getCustomEmail(prof.id);
+  return { ...prof, email: customEmail || prof.email, isManualEmail: Boolean(customEmail), isMockEmail: !customEmail && Boolean(prof.isMockEmail) };
+}
 
-    if (filters?.minScore) {
-      list = list.filter(p => p.matchingScore >= filters.minScore!);
-    }
-
-    const sortBy = filters?.sortBy || 'fit';
-    if (sortBy === 'fit') {
-      list.sort((a, b) => b.matchingScore - a.matchingScore);
-    } else if (sortBy === 'citations') {
-      list.sort((a, b) => b.totalCitations - a.totalCitations);
-    } else if (sortBy === 'hIndex') {
-      list.sort((a, b) => b.hIndex - a.hIndex);
-    }
-
+export const openalex = {
+  async searchProfessors(query = '', filters?: { field?: string; institution?: string; minScore?: number; sortBy?: 'fit' | 'citations' | 'hIndex' }): Promise<Professor[]> {
+    let list = await searchLive(query);
+    if (filters?.field && filters.field !== 'All Fields') list = list.filter((prof) => prof.primaryField === filters.field || prof.researchTopics.includes(filters.field!));
+    if (filters?.institution && filters.institution !== 'All Institutions') list = list.filter((prof) => prof.institution === filters.institution);
+    if (filters?.minScore) list = list.filter((prof) => prof.matchingScore >= filters.minScore!);
+    if (filters?.sortBy === 'citations') list.sort((a, b) => b.totalCitations - a.totalCitations);
+    if (filters?.sortBy === 'hIndex') list.sort((a, b) => b.hIndex - a.hIndex);
     return list;
   },
 
-  /**
-   * Fetch single professor by ID
-   */
+  async searchSampleProfessors(query = '', filters?: { field?: string; institution?: string; sortBy?: 'fit' | 'citations' | 'hIndex' }): Promise<Professor[]> {
+    const q = query.trim().toLowerCase();
+    let list = MOCK_PROFESSORS.map(mapSample).filter((prof) => !q || [prof.name, prof.institution, prof.department, prof.primaryField, ...prof.researchTopics, ...prof.recentPublications.map((pub) => pub.title)].join(' ').toLowerCase().includes(q));
+    if (filters?.field && filters.field !== 'All Fields') list = list.filter((prof) => prof.primaryField === filters.field || prof.researchTopics.includes(filters.field!));
+    if (filters?.institution && filters.institution !== 'All Institutions') list = list.filter((prof) => prof.institution === filters.institution);
+    if (filters?.sortBy === 'citations') list.sort((a, b) => b.totalCitations - a.totalCitations);
+    if (filters?.sortBy === 'hIndex') list.sort((a, b) => b.hIndex - a.hIndex);
+    return list;
+  },
+
   async getProfessorById(id: string): Promise<Professor | null> {
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const found = MOCK_PROFESSORS.find(p => p.id === id);
-    if (!found) return null;
-
-    const profile = storage.getProfile();
-    const scoringResult = scoring.calculateFitScore(found, profile);
-    const customEmail = storage.getCustomEmail(found.id);
-
-    return {
-      ...found,
-      email: customEmail || found.email,
-      isManualEmail: !!customEmail,
-      isMockEmail: !customEmail && !!found.email && !!found.isMockEmail,
-      matchingScore: scoringResult.totalScore,
-      matchReasons: scoringResult.reasons,
-    };
+    const found = MOCK_PROFESSORS.find((prof) => prof.id === id);
+    return found ? mapSample(found) : null;
   },
 
   getInstitutions(): string[] {
-    const set = new Set<string>();
-    MOCK_PROFESSORS.forEach(p => set.add(p.institution));
-    return ['All Institutions', ...Array.from(set)];
+    return ['All Institutions'];
   },
 
   getResearchFields(): string[] {
-    const set = new Set<string>();
-    MOCK_PROFESSORS.forEach(p => {
-      set.add(p.primaryField);
-      p.researchTopics.forEach(t => set.add(t));
-    });
-    return ['All Fields', 'Distributed Systems', 'Consensus Protocols', 'ML Systems (LLM Serving)', 'Formal Verification', 'Disaggregated Memory'];
+    return ['All Fields', 'Distributed Systems', 'Consensus Protocols', 'ML Systems (LLM Serving)', 'Formal Verification', 'Disaggregated Memory', 'Microkernels'];
+  },
+
+  getSessionApiCalls(): number {
+    return sessionApiCalls;
   },
 
   /**
