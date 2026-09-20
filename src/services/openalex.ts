@@ -24,9 +24,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Kernel Bypassing (RDMA)'
     ],
     bio: 'Leads the Scalable Systems Group at Stanford. Her research focuses on distributed operating systems, rack-scale memory disaggregation over CXL, and fault-tolerant consensus for extreme low-latency clusters.',
-    email: 'smitchell@cs.stanford.edu',
-    emailConfidence: 96,
-    emailSource: 'Stanford Faculty Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://csl.stanford.edu/~smitchell',
     suggestedHookSnippet: 'Connecting memory tiering in heterogeneous CXL clusters with asynchronous replication logs.',
@@ -87,9 +86,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Rust Systems Programming'
     ],
     bio: 'Directs research on formally verified distributed systems and secure consensus protocols at MIT CSAIL. Co-developer of several foundational protocol verification frameworks.',
-    email: 'dkreed@mit.edu',
-    emailConfidence: 94,
-    emailSource: 'MIT CSAIL Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://pdos.csail.mit.edu/~reed',
     suggestedHookSnippet: 'Formalizing dynamic leader election invariants using interactive theorem provers.',
@@ -150,9 +148,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Compiler Optimizations'
     ],
     bio: 'Her research bridges deep learning infrastructure and systems architecture, focusing on memory-efficient inference for trillion-parameter models, pipeline parallelism, and heterogeneous GPU clusters.',
-    email: 'erostova@cs.cmu.edu',
-    emailConfidence: 95,
-    emailSource: 'CMU School of Computer Science',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://csd.cmu.edu/~erostova',
     suggestedHookSnippet: 'Speculative paging for KV-cache offloading during long-context LLM generation.',
@@ -213,9 +210,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Hardware-Software Co-Design'
     ],
     bio: 'Focuses on designing high-assurance system software from bare metal up. Investigates capability-based microkernels, verified device drivers, and architectures that resist side-channel attacks.',
-    email: 'mvance@cs.washington.edu',
-    emailConfidence: 91,
-    emailSource: 'UW Allen School Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://cs.washington.edu/people/faculty/mvance',
     suggestedHookSnippet: 'Hardware-enforced memory capabilities for microkernel IPC with verified Rust contracts.',
@@ -267,9 +263,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Key-Value Stores'
     ],
     bio: 'Her lab designs high-performance database engines and persistent memory storage hierarchies. Works closely with industry partners on SSD firmware optimizations and RocksDB extensions.',
-    email: 'jenniferlin@ucsd.edu',
-    emailConfidence: 93,
-    emailSource: 'UCSD CSE Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://cseweb.ucsd.edu/~jlin',
     suggestedHookSnippet: 'Dynamic write-amplification mitigation in tiered flash storage using learned bloom filters.',
@@ -321,9 +316,7 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Autonomous Systems'
     ],
     bio: 'Investigates safety-critical autonomous systems, multi-agent consensus control, and reinforcement learning with formal guarantees for aerial and ground robotic swarms.',
-    email: null, // INTENTIONALLY NULL to showcase "No email found, add manually" state!
-    emailConfidence: 0,
-    emailSource: 'Unlisted in public directory',
+    email: null,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://eecs.berkeley.edu/~rmb',
     suggestedHookSnippet: 'Safety certificates for multi-robot consensus using control barrier functions under intermittent network packet loss.',
@@ -375,9 +368,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Decentralized Data'
     ],
     bio: 'Conducts research in large-scale decentralized systems, planet-scale peer-to-peer data distribution, and resilient edge compute fabrics for remote sensing applications.',
-    email: 'apatel@cs.cornell.edu',
-    emailConfidence: 94,
-    emailSource: 'Cornell CIS Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://cs.cornell.edu/~apatel',
     suggestedHookSnippet: 'Hierarchical gossip protocols for consistency management across satellite-to-ground edge nodes.',
@@ -420,9 +412,8 @@ export const MOCK_PROFESSORS: Professor[] = [
       'Fault Tolerance'
     ],
     bio: 'Designs memory hierarchies and accelerator interconnects for next-generation datacenters, with emphasis on optical switches and near-memory computing.',
-    email: 'tcraig@princeton.edu',
-    emailConfidence: 92,
-    emailSource: 'Princeton CS Directory',
+    email: 'sample.faculty@example.edu',
+    isMockEmail: true,
     googleScholarUrl: 'https://scholar.google.com',
     labWebsiteUrl: 'https://cs.princeton.edu/~tcraig',
     suggestedHookSnippet: 'Optical interconnect switching for sub-microsecond optical disaggregated memory pools.',
@@ -475,6 +466,8 @@ export const openalex = {
       return {
         ...prof,
         email: customEmail || prof.email,
+        isManualEmail: !!customEmail,
+        isMockEmail: !customEmail && !!prof.email && !!prof.isMockEmail,
         matchingScore: scoringResult.totalScore,
         matchReasons: scoringResult.reasons,
       };
@@ -532,6 +525,8 @@ export const openalex = {
     return {
       ...found,
       email: customEmail || found.email,
+      isManualEmail: !!customEmail,
+      isMockEmail: !customEmail && !!found.email && !!found.isMockEmail,
       matchingScore: scoringResult.totalScore,
       matchReasons: scoringResult.reasons,
     };

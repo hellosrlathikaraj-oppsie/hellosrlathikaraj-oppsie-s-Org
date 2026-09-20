@@ -352,28 +352,40 @@ export function DiscoverView({
 
                 {/* Bottom Actions Row: Primary "View Profile & Hook" */}
                 <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {prof.email ? (
-                      <button
-                        onClick={(e) => handleCopyEmail(e, prof)}
-                        className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg bg-[#141e33] hover:bg-slate-800 border border-slate-700/60 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Copy verified email"
-                      >
-                        {copiedEmailId === prof.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-300 font-mono">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Mail className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="font-mono text-[11px]">{prof.email}</span>
-                          </>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleCopyEmail(e, prof)}
+                          className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg bg-[#141e33] hover:bg-slate-800 border border-slate-700/60 flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title={prof.isMockEmail ? "Sample placeholder email" : "Copy email address"}
+                        >
+                          {copiedEmailId === prof.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-emerald-300 font-mono">Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="font-mono text-[11px]">{prof.email}</span>
+                            </>
+                          )}
+                        </button>
+                        {prof.isMockEmail && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/40">
+                            Sample data, not a real address
+                          </span>
                         )}
-                      </button>
+                        {prof.isManualEmail && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
+                            Manually added
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-[11px] font-mono text-amber-400/90 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-lg">
-                        Email unlisted · Add manually in detail
+                        No email found, add manually
                       </span>
                     )}
                   </div>

@@ -28,8 +28,8 @@ export interface Professor {
   bio: string;
   recentPublications: Publication[];
   email: string | null;
-  emailConfidence?: number; // 0 to 100
-  emailSource?: string;
+  isMockEmail?: boolean;
+  isManualEmail?: boolean;
   googleScholarUrl?: string;
   labWebsiteUrl?: string;
   suggestedHookSnippet: string;

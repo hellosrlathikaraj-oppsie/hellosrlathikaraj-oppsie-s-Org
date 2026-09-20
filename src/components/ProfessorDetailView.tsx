@@ -51,9 +51,8 @@ export function ProfessorDetailView({
 
   // Email finder state
   const [currentEmail, setCurrentEmail] = useState<string | null>(activeProfessor.email);
-  const [emailStatus, setEmailStatus] = useState<'found' | 'verified' | 'not_found'>(
-    activeProfessor.email ? 'verified' : 'not_found'
-  );
+  const [isManualEmail, setIsManualEmail] = useState<boolean>(!!activeProfessor.isManualEmail);
+  const [isMockEmail, setIsMockEmail] = useState<boolean>(!activeProfessor.isManualEmail && !!activeProfessor.isMockEmail);
   const [manualEmailInput, setManualEmailInput] = useState('');
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [isSearchingEmail, setIsSearchingEmail] = useState(false);
@@ -64,9 +63,16 @@ export function ProfessorDetailView({
 
     // Check email finder
     setIsSearchingEmail(true);
-    emailFinder.findEmail(activeProfessor.id, activeProfessor.name, activeProfessor.institution).then((res) => {
-      setCurrentEmail(res.email);
-      setEmailStatus(res.status);
+    emailFinder.findEmail(activeProfessor.id).then((res) => {
+      if (res.isCustomManual && res.email) {
+        setCurrentEmail(res.email);
+        setIsManualEmail(true);
+        setIsMockEmail(false);
+      } else {
+        setCurrentEmail(activeProfessor.email);
+        setIsManualEmail(!!activeProfessor.isManualEmail);
+        setIsMockEmail(!activeProfessor.isManualEmail && !!activeProfessor.isMockEmail);
+      }
       setIsSearchingEmail(false);
     });
 
@@ -87,10 +93,11 @@ export function ProfessorDetailView({
 
     const saved = emailFinder.saveManualEmail(activeProfessor.id, manualEmailInput.trim());
     setCurrentEmail(saved.email);
-    setEmailStatus('verified');
+    setIsManualEmail(true);
+    setIsMockEmail(false);
     setIsEditingEmail(false);
     setManualEmailInput('');
-    onShowToast('Email saved & verified for this professor', undefined, 'success');
+    onShowToast('Manual email saved for this professor', undefined, 'success');
   };
 
   // Copy Subject Line
@@ -109,10 +116,24 @@ export function ProfessorDetailView({
     setTimeout(() => setCopiedDraft(false), 2000);
   };
 
+  // Open in Gmail link generator
+  const gmailUrl = currentEmail
+    ? `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(currentEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+    : '';
+
+  // Can send/open email check (forbidden if no email or is mock placeholder)
+  const isSendDisabled = !currentEmail || isMockEmail;
+
   // Mark as Sent & Add to Tracker (End-to-End)
   const handleMarkAsSent = () => {
     if (!currentEmail) {
       onShowToast('Cannot add without an email', 'Please provide a valid contact email for this professor first.', 'error');
+      setIsEditingEmail(true);
+      return;
+    }
+
+    if (isMockEmail) {
+      onShowToast('Sample email address', 'Please replace the placeholder with a real email before sending or tracking.', 'error');
       setIsEditingEmail(true);
       return;
     }
@@ -256,7 +277,7 @@ export function ProfessorDetailView({
           {isSearchingEmail ? (
             <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
               <div className="w-3.5 h-3.5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-              <span>Looking up verified faculty email...</span>
+              <span>Looking up faculty contact...</span>
             </div>
           ) : currentEmail && !isEditingEmail ? (
             <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0a0f19] p-3.5 rounded-xl border border-slate-800">
@@ -265,16 +286,31 @@ export function ProfessorDetailView({
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-mono font-semibold text-slate-100">{currentEmail}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/50 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Verified
-                    </span>
+                    {isMockEmail && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-700/50 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Sample data, not a real address
+                      </span>
+                    )}
+                    {isManualEmail && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/50 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Manually added
+                      </span>
+                    )}
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Source: {activeProfessor.emailSource || 'Faculty Directory'}
-                  </p>
+                  {isMockEmail && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Placeholder address for demo. Add a manual email below to enable sending actions.
+                    </p>
+                  )}
+                  {isManualEmail && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Saved to your local contact overrides for this faculty member.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -297,19 +333,19 @@ export function ProfessorDetailView({
                   className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit</span>
+                  <span>{isManualEmail ? 'Edit' : 'Replace with Real Email'}</span>
                 </button>
               </div>
             </div>
           ) : (
-            /* "No email found, add manually" state (as explicitly mandated by user rules) */
+            /* "No email found, add manually" state */
             <div className="bg-[#1f1614] border border-amber-800/50 p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
                 <div>
-                  <span className="text-xs font-bold text-amber-200">No official email listed for this faculty member</span>
+                  <span className="text-xs font-bold text-amber-200">No email found, add manually</span>
                   <p className="text-[11px] text-amber-300/80 mt-0.5">
-                    OpenAlex could not resolve a public direct email address. Please add their email manually to enable cold outreach tracking.
+                    No contact is listed for this faculty member. Enter their official department email to enable sending.
                   </p>
                 </div>
               </div>
@@ -317,7 +353,7 @@ export function ProfessorDetailView({
               <form onSubmit={handleSaveManualEmail} className="flex flex-col sm:flex-row gap-2 pt-1">
                 <input
                   type="email"
-                  placeholder="e.g. professor@eecs.berkeley.edu"
+                  placeholder="e.g. professor@cs.university.edu"
                   value={manualEmailInput}
                   onChange={(e) => setManualEmailInput(e.target.value)}
                   className="flex-1 bg-[#120d0c] text-xs text-slate-100 placeholder-slate-400 px-3.5 py-2.5 rounded-lg border border-amber-700/60 focus:border-amber-400 outline-none"
@@ -329,7 +365,7 @@ export function ProfessorDetailView({
                     className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow transition-colors cursor-pointer flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Save & Verify</span>
+                    <span>Save Manual Email</span>
                   </button>
                   {currentEmail && (
                     <button
@@ -568,18 +604,43 @@ export function ProfessorDetailView({
                 )}
               </button>
 
-              {/* Mandated Feature: "Mark as Sent & Add to Tracker" */}
-              <button
-                id="mark-sent-add-tracker-btn"
-                onClick={handleMarkAsSent}
-                disabled={isAddingToTracker}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 flex items-center justify-center gap-2 transition-all cursor-pointer font-sans disabled:opacity-50"
-              >
-                <Send className={`w-4 h-4 ${isAddingToTracker ? 'animate-pulse' : ''}`} />
-                <span>
-                  {isAddingToTracker ? 'Adding to Tracker...' : 'Mark as Sent & Add to Tracker'}
-                </span>
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                {/* Mandated Feature: Open in Gmail */}
+                {isSendDisabled ? (
+                  <button
+                    disabled
+                    title={isMockEmail ? "Disabled: Sample email address. Replace with real email first." : "Disabled: No email found."}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-medium text-slate-500 bg-slate-800/40 border border-slate-800 flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Open in Gmail</span>
+                  </button>
+                ) : (
+                  <a
+                    href={gmailUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ExternalLink className="w-4 h-4 text-indigo-400" />
+                    <span>Open in Gmail</span>
+                  </a>
+                )}
+
+                {/* Mandated Feature: "Mark as Sent & Add to Tracker" */}
+                <button
+                  id="mark-sent-add-tracker-btn"
+                  onClick={handleMarkAsSent}
+                  disabled={isAddingToTracker || isSendDisabled}
+                  title={isMockEmail ? "Disabled for sample email data" : !currentEmail ? "Disabled: No email found" : ""}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 flex items-center justify-center gap-2 transition-all cursor-pointer font-sans disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Send className={`w-4 h-4 ${isAddingToTracker ? 'animate-pulse' : ''}`} />
+                  <span>
+                    {isAddingToTracker ? 'Adding to Tracker...' : 'Mark as Sent & Add to Tracker'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
