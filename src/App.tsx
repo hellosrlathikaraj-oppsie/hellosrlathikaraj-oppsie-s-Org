@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationTab, Professor, TrackerEntry, UserProfile } from './types';
-import { storage } from './services/storage';
+import { DEFAULT_PROFILE, storage } from './services/storage';
 import { openalex, MOCK_PROFESSORS } from './services/openalex';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -60,6 +60,21 @@ export default function App() {
     }
   };
 
+  const handleClearData = () => {
+    storage.clearAllData();
+    setUserProfile(DEFAULT_PROFILE);
+    setTrackerEntries([]);
+    setDiscoverSearch('');
+    setSelectedProfessor(null);
+    setCurrentTab('profile');
+    showToast('Local data cleared', 'Your profile, tracker, manual emails, and saved OpenAlex key were removed from this browser.', 'success');
+  };
+
+  const handleDataImported = () => {
+    setUserProfile(storage.getProfile());
+    setTrackerEntries(storage.getTrackerEntries());
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col font-sans">
       {/* Persistent Navigation Sidebar */}
@@ -92,6 +107,7 @@ export default function App() {
               onSelectProfessor={handleSelectProfessor}
               searchQuery={discoverSearch}
               onSearchChange={setDiscoverSearch}
+              userProfile={userProfile}
               onShowToast={showToast}
             />
           )}
@@ -120,6 +136,8 @@ export default function App() {
             <ProfileView
               profile={userProfile}
               onUpdateProfile={(updated) => setUserProfile(updated)}
+              onDataImported={handleDataImported}
+              onClearData={handleClearData}
               onShowToast={showToast}
             />
           )}

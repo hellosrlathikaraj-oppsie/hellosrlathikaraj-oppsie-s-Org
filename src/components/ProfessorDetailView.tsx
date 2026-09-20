@@ -220,12 +220,19 @@ export function ProfessorDetailView({
                 </span>
               </div>
 
-              <p className="text-sm text-slate-300 font-medium">
-                {activeProfessor.title}
-              </p>
-              <p className="text-xs text-slate-400">
-                {activeProfessor.department} · <span className="text-slate-300 font-semibold">{activeProfessor.institution}</span> · {activeProfessor.city}, {activeProfessor.country}
-              </p>
+              {activeProfessor.title && (
+                <p className="text-sm text-slate-300 font-medium">{activeProfessor.title}</p>
+              )}
+              {(activeProfessor.department || activeProfessor.institution || activeProfessor.city || activeProfessor.country) && (
+                <p className="text-xs text-slate-400">
+                  {[activeProfessor.department, activeProfessor.institution, [activeProfessor.city, activeProfessor.country].filter(Boolean).join(', ')].filter(Boolean).map((item, index, items) => (
+                    <React.Fragment key={`${item}-${index}`}>
+                      {index > 0 && ' · '}
+                      <span className={item === activeProfessor.institution ? 'text-slate-300 font-semibold' : undefined}>{item}</span>
+                    </React.Fragment>
+                  ))}
+                </p>
+              )}
 
               {/* External directory links */}
               <div className="flex items-center gap-3 pt-2 text-xs">
@@ -262,7 +269,7 @@ export function ProfessorDetailView({
             <div className="flex items-center gap-2">
               <div className="px-3.5 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 shadow-md shadow-emerald-950/50">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>{activeProfessor.matchingScore}% Candidate Fit</span>
+                <span>{activeProfessor.isProvisionalScore ? `${activeProfessor.matchingScore} Estimated match` : `${activeProfessor.matchingScore} Illustrative sample`}</span>
               </div>
             </div>
             <div className="text-xs font-mono text-slate-400 space-y-0.5 text-left lg:text-right">
@@ -413,9 +420,9 @@ export function ProfessorDetailView({
               <BookOpen className="w-4 h-4 text-indigo-400" />
               Research Focus & Lab
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              {activeProfessor.bio}
-            </p>
+            {activeProfessor.bio && (
+              <p className="text-xs text-slate-300 leading-relaxed">{activeProfessor.bio}</p>
+            )}
 
             <div>
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono block mb-2">

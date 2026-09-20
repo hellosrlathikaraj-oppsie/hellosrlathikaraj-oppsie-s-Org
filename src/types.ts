@@ -30,6 +30,7 @@ export interface Professor {
   email: string | null;
   isMockEmail?: boolean;
   isManualEmail?: boolean;
+  isProvisionalScore?: boolean;
   googleScholarUrl?: string;
   labWebsiteUrl?: string;
   suggestedHookSnippet: string;

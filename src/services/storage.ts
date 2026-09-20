@@ -4,115 +4,26 @@ const STORAGE_KEYS = {
   PROFILE: 'scout_user_profile',
   TRACKER: 'scout_tracker_entries',
   CUSTOM_EMAILS: 'scout_custom_emails',
+  OPENALEX_KEY: 'scout_openalex_key',
   SAVED_PROFS: 'scout_saved_professors',
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
-  fullName: 'Alex Chen',
-  email: 'alex.chen@cs.university.edu',
-  currentInstitution: 'UC Berkeley',
-  currentDegree: 'B.S. in Computer Science',
-  graduationYear: '2026',
-  targetOpportunity: 'PhD Fall 2027 / Research Assistant',
-  primaryInterests: [
-    'Distributed Systems',
-    'Fault Tolerance',
-    'Consensus Protocols',
-    'ML Systems (LLM Serving)',
-    'Formal Verification'
-  ],
-  technicalSkills: [
-    'Rust',
-    'C++',
-    'Go',
-    'Distributed KV Stores',
-    'Raft/Paxos',
-    'PyTorch',
-    'TLA+'
-  ],
-  researchStatement: 'Passionate about building highly reliable, low-latency distributed primitives for modern data-intensive workloads and distributed model serving. Previous experience implementing a multi-Paxos replicated log with dynamic reconfiguration.',
-  cvUrl: 'https://alexchen.dev/cv.pdf',
-  githubUrl: 'https://github.com/alexchen',
-  portfolioUrl: 'https://alexchen.dev'
+  fullName: '',
+  email: '',
+  currentInstitution: '',
+  currentDegree: '',
+  graduationYear: '',
+  targetOpportunity: '',
+  primaryInterests: [],
+  technicalSkills: [],
+  researchStatement: '',
+  cvUrl: '',
+  githubUrl: '',
+  portfolioUrl: ''
 };
 
-export const DEFAULT_TRACKER_ENTRIES: TrackerEntry[] = [
-  {
-    id: 'trk-1',
-    professorId: 'prof-1',
-    professorName: 'Dr. Sarah Mitchell',
-    institution: 'Stanford University',
-    email: 'smitchell@cs.stanford.edu',
-    subject: 'Inquiry on Distributed Systems & Disaggregated Memory (Prospective PhD)',
-    dateSent: '2026-09-12',
-    status: 'Replied',
-    lastContactDate: '2026-09-15',
-    followUpDue: false,
-    followUpDays: 0,
-    notes: 'Replied mentioning their upcoming OSDI submission and suggested chatting after workshop.',
-    hookSnippet: 'Re: Disaggregated Memory Architecture in CXL clusters'
-  },
-  {
-    id: 'trk-2',
-    professorId: 'prof-2',
-    professorName: 'Prof. David K. Reed',
-    institution: 'MIT CSAIL',
-    email: 'dkreed@mit.edu',
-    subject: 'Research Collaboration on Fault-Tolerant Consensus',
-    dateSent: '2026-09-14',
-    status: 'Sent',
-    lastContactDate: '2026-09-14',
-    followUpDue: true,
-    followUpDays: 6,
-    notes: 'Sent personalized hook on Paxos state-machine replication improvements. Need to follow up next Tuesday.',
-    hookSnippet: 'Re: Asynchronous BFT Protocols under Network Partitions'
-  },
-  {
-    id: 'trk-3',
-    professorId: 'prof-3',
-    professorName: 'Dr. Elena Rostova',
-    institution: 'Carnegie Mellon University',
-    email: 'erostova@cs.cmu.edu',
-    subject: 'Inquiry regarding Systems for ML & GPU Memory Paging',
-    dateSent: '2026-09-08',
-    status: 'Followed Up',
-    lastContactDate: '2026-09-16',
-    followUpDue: false,
-    followUpDays: 0,
-    notes: 'Followed up citing her recent EuroSys paper on speculative paging. Waiting for second response.',
-    hookSnippet: 'Re: Unified Virtual Memory optimizations for Mixture-of-Experts'
-  },
-  {
-    id: 'trk-4',
-    professorId: 'prof-4',
-    professorName: 'Prof. Marcus Vance',
-    institution: 'University of Washington',
-    email: 'mvance@cs.washington.edu',
-    subject: 'Prospective Graduate Researcher - Formal Verification of Microkernels',
-    dateSent: '2026-09-05',
-    status: 'Meeting Booked',
-    lastContactDate: '2026-09-17',
-    followUpDue: false,
-    followUpDays: 0,
-    notes: 'Zoom screening call set for next Thursday at 2 PM PST. Reviewed lab recent SOSP paper.',
-    hookSnippet: 'Re: Automated proofs for concurrent lock-free data structures'
-  },
-  {
-    id: 'trk-5',
-    professorId: 'prof-5',
-    professorName: 'Dr. Jennifer Lin',
-    institution: 'UC San Diego',
-    email: 'jenniferlin@ucsd.edu',
-    subject: 'Summer Research Internship / Systems Group',
-    dateSent: '2026-08-28',
-    status: 'Not Interested',
-    lastContactDate: '2026-09-02',
-    followUpDue: false,
-    followUpDays: 0,
-    notes: 'Polite reply stating lab is at capacity for 2026-2027 intake, advised applying in general PhD cycle.',
-    hookSnippet: 'Re: Persistent memory file systems in heterogeneous clusters'
-  }
-];
+export const DEFAULT_TRACKER_ENTRIES: TrackerEntry[] = [];
 
 export const storage = {
   getProfile(): UserProfile {
@@ -176,9 +87,7 @@ export const storage = {
     } catch (e) {
       console.error('Failed to read tracker entries from localStorage', e);
     }
-    // Seed initial
-    this.saveTrackerEntries(DEFAULT_TRACKER_ENTRIES);
-    return DEFAULT_TRACKER_ENTRIES;
+    return [];
   },
 
   saveTrackerEntries(entries: TrackerEntry[]): void {
@@ -241,6 +150,45 @@ export const storage = {
     } catch (e) {
       console.error('Failed to save custom email', e);
     }
+  },
+
+  getOpenAlexKey(): string {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.OPENALEX_KEY) || '';
+    } catch {
+      return '';
+    }
+  },
+
+  saveOpenAlexKey(key: string): void {
+    try {
+      if (key.trim()) localStorage.setItem(STORAGE_KEYS.OPENALEX_KEY, key.trim());
+      else localStorage.removeItem(STORAGE_KEYS.OPENALEX_KEY);
+    } catch (e) {
+      console.error('Failed to save OpenAlex key', e);
+    }
+  },
+
+  clearAllData(): void {
+    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+  },
+
+  exportData(): string {
+    const customEmails = localStorage.getItem(STORAGE_KEYS.CUSTOM_EMAILS);
+    return JSON.stringify({
+      version: 1,
+      profile: this.getProfile(),
+      trackerEntries: this.getTrackerEntries(),
+      customEmails: customEmails ? JSON.parse(customEmails) : {},
+    }, null, 2);
+  },
+
+  importData(raw: string): void {
+    const data = JSON.parse(raw) as { profile?: UserProfile; trackerEntries?: TrackerEntry[]; customEmails?: Record<string, string> };
+    if (!data || typeof data !== 'object') throw new Error('Invalid Scout data file.');
+    if (data.profile) this.saveProfile(data.profile);
+    if (Array.isArray(data.trackerEntries)) this.saveTrackerEntries(data.trackerEntries);
+    if (data.customEmails && typeof data.customEmails === 'object') localStorage.setItem(STORAGE_KEYS.CUSTOM_EMAILS, JSON.stringify(data.customEmails));
   },
 
   exportTrackerToCSV(entries: TrackerEntry[]): void {
