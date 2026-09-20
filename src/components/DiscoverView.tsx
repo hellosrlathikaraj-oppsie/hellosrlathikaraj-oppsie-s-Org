@@ -13,10 +13,12 @@ import {
   ArrowUpDown,
   Building2,
   RefreshCw,
-  FolderSearch
+  FolderSearch,
+  AlertTriangle,
+  Database
 } from 'lucide-react';
 import { Professor } from '../types';
-import { openalex } from '../services/openalex';
+import { openalex, OpenAlexError } from '../services/openalex';
 
 interface DiscoverViewProps {
   onSelectProfessor: (professor: Professor) => void;
@@ -37,6 +39,9 @@ export function DiscoverView({
   const [selectedInstitution, setSelectedInstitution] = useState('All Institutions');
   const [sortBy, setSortBy] = useState<'fit' | 'citations' | 'hIndex'>('fit');
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
+  const [useSampleData, setUseSampleData] = useState(false);
+  const [error, setError] = useState<OpenAlexError | null>(null);
+  const [apiCalls, setApiCalls] = useState(0);
 
   const institutions = openalex.getInstitutions();
   const fields = openalex.getResearchFields();
@@ -52,23 +57,28 @@ export function DiscoverView({
 
   const fetchProfessors = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const results = await openalex.searchProfessors(searchQuery, {
+      const search = useSampleData ? openalex.searchSampleProfessors : openalex.searchProfessors;
+      const results = await search(searchQuery, {
         field: selectedField,
         institution: selectedInstitution,
         sortBy,
       });
       setProfessors(results);
     } catch (err) {
-      console.error('Failed to search professors', err);
+      const normalized = err instanceof OpenAlexError ? err : new OpenAlexError('network', 'Could not load search results. Please check your connection and try again.');
+      setError(normalized);
+      setProfessors([]);
     } finally {
+      setApiCalls(openalex.getSessionApiCalls());
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProfessors();
-  }, [searchQuery, selectedField, selectedInstitution, sortBy]);
+  }, [searchQuery, selectedField, selectedInstitution, sortBy, useSampleData]);
 
   const handleCopyEmail = (e: React.MouseEvent, prof: Professor) => {
     e.stopPropagation();
@@ -192,6 +202,21 @@ export function DiscoverView({
             );
           })}
         </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <label className="inline-flex items-center gap-2 text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useSampleData}
+              onChange={(event) => setUseSampleData(event.target.checked)}
+              className="accent-indigo-500"
+            />
+            <span>Use sample data</span>
+          </label>
+          <span className="inline-flex items-center gap-1.5 text-slate-500 font-mono">
+            <Database className="w-3.5 h-3.5" />
+            API calls this session: {apiCalls}
+          </span>
+        </div>
       </div>
 
       {/* Result Count Banner */}
@@ -228,8 +253,25 @@ export function DiscoverView({
         </div>
       )}
 
+      {/* Error State */}
+      {!loading && error && (
+        <div className="bg-[#0e1422] rounded-2xl border border-amber-800/50 p-8 text-center max-w-lg mx-auto my-8">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-2">
+            {error.code === 'missing_key' ? 'OpenAlex API key missing' : error.code === 'rate_limit' ? 'OpenAlex rate limit reached' : 'Search unavailable'}
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed mb-6">{error.message}</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button onClick={fetchProfessors} className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer">Try again</button>
+            {!useSampleData && <button onClick={() => setUseSampleData(true)} className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all cursor-pointer">Use sample data</button>}
+          </div>
+        </div>
+      )}
+
       {/* Empty State */}
-      {!loading && professors.length === 0 && (
+      {!loading && !error && professors.length === 0 && (
         <div className="bg-[#0e1422] rounded-2xl border border-slate-800/80 p-12 text-center max-w-lg mx-auto my-8">
           <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
             <FolderSearch className="w-7 h-7" />
@@ -280,16 +322,14 @@ export function DiscoverView({
                         </span>
                       </div>
 
-                      <p className="text-xs text-slate-300 font-medium mt-0.5">
-                        {prof.title}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-400 mt-1">
-                        <span className="font-semibold text-slate-300">{prof.institution}</span>
-                        <span>·</span>
-                        <span className="text-slate-400">{prof.department}</span>
-                        <span>·</span>
-                        <span className="text-slate-400">{prof.city}, {prof.country}</span>
-                      </div>
+                      {prof.title && <p className="text-xs text-slate-300 font-medium mt-0.5">{prof.title}</p>}
+                      {(prof.institution || prof.department || prof.city || prof.country) && (
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-400 mt-1">
+                          {prof.institution && <span className="font-semibold text-slate-300">{prof.institution}</span>}
+                          {prof.department && <><span>·</span><span className="text-slate-400">{prof.department}</span></>}
+                          {(prof.city || prof.country) && <><span>·</span><span className="text-slate-400">{[prof.city, prof.country].filter(Boolean).join(', ')}</span></>}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -304,7 +344,7 @@ export function DiscoverView({
                         }`}
                       >
                         <Sparkles className="w-3.5 h-3.5 text-current" />
-                        <span>{fitPercentage}% Fit Score</span>
+                        <span>{fitPercentage} works · Provisional score</span>
                       </div>
                     </div>
                     <div className="text-[11px] text-slate-400 font-mono">
@@ -326,9 +366,7 @@ export function DiscoverView({
                 </div>
 
                 {/* Bio Excerpt */}
-                <p className="mt-3 text-xs text-slate-300 leading-relaxed line-clamp-2">
-                  {prof.bio}
-                </p>
+                {prof.bio && <p className="mt-3 text-xs text-slate-300 leading-relaxed line-clamp-2">{prof.bio}</p>}
 
                 {/* Recent Key Publication Snippet */}
                 {prof.recentPublications.length > 0 && (
